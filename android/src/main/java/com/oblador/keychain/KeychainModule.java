@@ -75,6 +75,8 @@ public class KeychainModule extends ReactContextBaseJavaModule {
   private final PrefsStorage prefsStorage;
   //endregion
 
+  private CipherStorage chosenStorage;
+
   public KeychainModule(@NonNull final ReactApplicationContext reactContext) {
     super(reactContext);
     prefsStorage = new PrefsStorage(reactContext);
@@ -85,6 +87,12 @@ public class KeychainModule extends ReactContextBaseJavaModule {
     // we have a references to newer api that will fail load of app classes in old androids OS
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
       addCipherStorageToMap(new CipherStorageKeystoreRsaEcb());
+    }
+
+    try {
+      chosenStorage = getCipherStorageForCurrentAPILevel();
+    } catch (CryptoFailedException e) {
+      Log.e(KEYCHAIN_MODULE, e.getMessage());
     }
   }
 
@@ -131,11 +139,10 @@ public class KeychainModule extends ReactContextBaseJavaModule {
 
       final SecurityLevel level = SecurityLevel.valueOf(minimumSecurityLevel);
       final String safeService = getDefaultServiceIfNull(service);
-      final CipherStorage storage = getCipherStorageForCurrentAPILevel();
 
-      throwIfInsufficientLevel(storage, level);
+      throwIfInsufficientLevel(chosenStorage, level);
 
-      final EncryptionResult result = storage.encrypt(safeService, username, password, level);
+      final EncryptionResult result = chosenStorage.encrypt(safeService, username, password, level);
       prefsStorage.storeEncryptedEntry(safeService, result);
 
       promise.resolve(true);
@@ -159,7 +166,6 @@ public class KeychainModule extends ReactContextBaseJavaModule {
                                            @NonNull final Promise promise) {
     try {
       final String safeService = getDefaultServiceIfNull(service);
-      final CipherStorage currentCipherStorage = getCipherStorageForCurrentAPILevel();
       final ResultSet resultSet = prefsStorage.getEncryptedEntry(safeService);
 
       if (resultSet == null) {
@@ -168,7 +174,7 @@ public class KeychainModule extends ReactContextBaseJavaModule {
         return;
       }
 
-      final DecryptionResult decryptionResult = decryptCredentials(safeService, currentCipherStorage, resultSet);
+      final DecryptionResult decryptionResult = decryptCredentials(safeService, chosenStorage, resultSet);
 
       final WritableMap credentials = Arguments.createMap();
       credentials.putString(Maps.SERVICE, safeService);
