@@ -65,38 +65,4 @@ public class CipherStorageKeystoreRsaEcbTests {
   private ReactApplicationContext getRNContext() {
     return new ReactApplicationContext(RuntimeEnvironment.application);
   }
-
-  @Test
-  @Config(sdk = Build.VERSION_CODES.M)
-  public void testGetSecurityLevel_api23() throws Exception {
-    final CipherStorageKeystoreAesCbc instance = new CipherStorageKeystoreAesCbc();
-    final Key mock = Mockito.mock(SecretKey.class);
-
-    final SecurityLevel level = instance.getSecurityLevel(mock);
-
-    assertThat(level, is(SecurityLevel.SECURE_HARDWARE));
-  }
-
-  @Test
-  @Config(sdk = Build.VERSION_CODES.P)
-  public void testVerifySecureHardwareAvailability_api28() throws Exception {
-    ReactApplicationContext context = getRNContext();
-
-    // for api24+ system feature should be enabled
-    shadowOf(context.getPackageManager()).setSystemFeature(PackageManager.FEATURE_FINGERPRINT, true);
-
-    // set that hardware is available and fingerprints configured
-    final FingerprintManager fm = (FingerprintManager) context.getSystemService(Context.FINGERPRINT_SERVICE);
-    shadowOf(fm).setIsHardwareDetected(true);
-    shadowOf(fm).setDefaultFingerprints(5); // 5 fingerprints are available
-
-    int result = BiometricManager.from(context).canAuthenticate();
-    assertThat(result, is(BiometricManager.BIOMETRIC_SUCCESS));
-
-    final CipherStorage storage = new CipherStorageKeystoreAesCbc();;
-
-    // expected RsaEcb with fingerprint
-    assertThat(storage.supportsSecureHardware(), is(true));
-  }
-
 }

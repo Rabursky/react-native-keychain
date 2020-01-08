@@ -11,7 +11,6 @@ import androidx.biometric.BiometricManager;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.oblador.keychain.cipherStorage.CipherStorage;
 import com.oblador.keychain.cipherStorage.CipherStorageFacebookConceal;
-import com.oblador.keychain.cipherStorage.CipherStorageKeystoreAesCbc;
 import com.oblador.keychain.cipherStorage.CipherStorageKeystoreRsaEcb;
 
 import org.junit.After;
@@ -184,28 +183,6 @@ public class KeychainModuleTests {
 
   @Test
   @Config(sdk = Build.VERSION_CODES.M)
-  public void testExtractAesCbc_NoFingerprintConfigured_api23() throws Exception {
-    // GIVEN:
-    //  API23 android version
-    final ReactApplicationContext context = getRNContext();
-
-    // WHEN: get the best secured storage
-    final KeychainModule module = new KeychainModule(context);
-    final CipherStorage storage = module.getCipherStorageForCurrentAPILevel();
-
-    // THEN:
-    //   expected AES cipher storage due no fingerprint available
-    //   AES win and returned instead of facebook cipher
-    assertThat(storage, notNullValue());
-    assertThat(storage, instanceOf(CipherStorageKeystoreAesCbc.class));
-    assertThat(storage.isBiometrySupported(), is(false));
-    assertThat(storage.securityLevel(), is(SecurityLevel.SECURE_HARDWARE));
-    assertThat(storage.getMinSupportedApiLevel(), is(Build.VERSION_CODES.M));
-    assertThat(storage.supportsSecureHardware(), is(true));
-  }
-
-  @Test
-  @Config(sdk = Build.VERSION_CODES.M)
   public void testExtractRsaEcb_EnabledFingerprint_api23() throws Exception {
     // GIVEN:
     //   API23 android version
@@ -262,40 +239,5 @@ public class KeychainModuleTests {
     assertThat(storage.securityLevel(), is(SecurityLevel.SECURE_HARDWARE));
     assertThat(storage.getMinSupportedApiLevel(), is(Build.VERSION_CODES.M));
     assertThat(storage.supportsSecureHardware(), is(true));
-  }
-
-  @Test
-  @Config(sdk = Build.VERSION_CODES.M)
-  public void testMigrateStorageFromOlder_api23() throws Exception {
-    // GIVEN:
-    final ReactApplicationContext context = getRNContext();
-    final CipherStorage aes = Mockito.mock(CipherStorage.class);
-    final CipherStorage rsa = Mockito.mock(CipherStorage.class);
-    final CipherStorage.DecryptionResult decrypted = new CipherStorage.DecryptionResult("user", "password");
-    final CipherStorage.EncryptionResult encrypted = new CipherStorage.EncryptionResult("user".getBytes(), "password".getBytes(), rsa);
-    final KeychainModule module = new KeychainModule(context);
-    final SharedPreferences prefs = context.getSharedPreferences(PrefsStorage.KEYCHAIN_DATA, Context.MODE_PRIVATE);
-
-    when(
-      rsa.encrypt(eq("dummy"), eq("user"), eq("password"), any())
-    ).thenReturn(encrypted);
-    when(rsa.getCipherStorageName()).thenReturn("dummy");
-
-    // WHEN:
-    module.migrateCipherStorage("dummy", rsa, aes, decrypted);
-    final String username = prefs.getString(PrefsStorage.getKeyForUsername("dummy"), "");
-    final String password = prefs.getString(PrefsStorage.getKeyForPassword("dummy"), "");
-    final String cipherName = prefs.getString(PrefsStorage.getKeyForCipherStorage("dummy"), "");
-
-    // THEN:
-    //   delete of key from old storage
-    //   re-store of encrypted data in shared preferences
-    verify(rsa).encrypt("dummy", "user", "password", SecurityLevel.ANY);
-    verify(aes).removeKey("dummy");
-
-    // Base64.DEFAULT force '\n' char in the end of string
-    assertThat(username, is("dXNlcg==\n"));
-    assertThat(password, is("cGFzc3dvcmQ=\n"));
-    assertThat(cipherName, is("dummy"));
   }
 }
